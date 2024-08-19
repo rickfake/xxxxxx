@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>
+        HOTMAIL SHARE
+    </title>
+    <style>
+        * {
+            font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+            text-align: center;
+        }
+
+        h1 small {
+            display: block;
+            font-size: 1rem;
+        }
+
+        h2 {
+            margin-top: 10rem;
+        }
+
+        p {
+            display: none;
+        }
+
+        [data-state="signed-out"] #signed-out,
+        [data-state="signed-in"] #signed-in,
+        [data-state="loading"] #loading {
+            display: block;
+        }
+    </style>
+</head>
+<body data-state="signed-out">
+<h1>
+    HOTMAIL SHARE
+    <small>HOTMAIL SHARE</small>
+</h1>
+<p id="signed-out">
+    <a href="https://outlook-api.rickk.workers.dev/github">Login with GitHub</a>
+    <a href="https://outlook-api.rickk.workers.dev/linuxdo">Login with LinuxDo</a>
+</p>
+<p id="signed-in">
+    Hello there, <span id="login"></span>. (<a href=".">Logout</a>)
+</p>
+<p id="loading">
+    Loading...
+</p>
+
+<script>
+    const WORKER_URL = "https://outlook-api.rickk.workers.dev";
+    const login_path = new URL(location.href).pathname.split("/")[1]; // 获取路径中的登录方式
+    const code = new URL(location.href).searchParams.get("code"); //
+    const $login = document.querySelector("#login");
+    if (code) {
+        if (login_path === "github") {
+            login_github(code);
+        } else if (login_path === "linuxdo") {
+            login_linuxdo(code);
+        }
+    }
+
+    async function login_linuxdo(code) {
+        const path =
+            location.pathname +
+            location.search.replace(/\bcode=\w+/, "").replace(/\?$/, "");
+        history.pushState({}, "", path);
+        document.body.dataset.state = "loading";
+        try {
+            const response = await fetch(WORKER_URL+"/linuxdo", {
+                method: "POST",
+                mode: "cors",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({code})
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                return alert(JSON.stringify(result, null, 2));
+            }
+
+            // token can now be used to send authenticated requests against https://api.github.com
+            const getUserResponse = await fetch("https://connect.linux.do/api/user", {
+                headers: {
+                    authorization: 'Bearer ' + result['access_token']
+                }
+            });
+            const {login} = await getUserResponse.json();
+            $login.textContent = login;
+            document.body.dataset.state = "signed-in";
+        } catch (error) {
+            alert(error);
+            location.reload();
+        }
+    }
+
+    async function login_github(code) {
+        const path =
+            location.pathname +
+            location.search.replace(/\bcode=\w+/, "").replace(/\?$/, "");
+        history.pushState({}, "", path);
+
+        document.body.dataset.state = "loading";
+
+        try {
+            const response = await fetch(WORKER_URL+"/github", {
+                method: "POST",
+                mode: "cors",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({code})
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                return alert(JSON.stringify(result, null, 2));
+            }
+
+            // token can now be used to send authenticated requests against https://api.github.com
+            const getUserResponse = await fetch("https://api.github.com/user", {
+                headers: {
+                    accept: "application/vnd.github.v3+json",
+                    authorization: 'token ' + result.token
+                }
+            });
+            const {login} = await getUserResponse.json();
+            $login.textContent = login;
+            document.body.dataset.state = "signed-in";
+        } catch (error) {
+            alert(error);
+            location.reload();
+        }
+    }
+</script>
+
+
+</body>
+</html>
